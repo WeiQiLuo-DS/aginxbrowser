@@ -1,6 +1,6 @@
 # 把 AginxBrowser 当 agent-browser 风格引擎用（HTTP）
 
-> 状态：**今天用 HTTP 即可**（`/session` + `/snapshot` + `ref`）。原生 `vercel-labs/agent-browser --engine aginx` 需要 CDP `serve`，见 [`cdp-serve-design.md`](cdp-serve-design.md)。不做 MCP。
+> 状态：**用 HTTP**（`/session` + `/snapshot` + `ref`）。CDP 面已评估并退役——HTTP 是唯一协议面；上游 `--engine aginx` 适配器应讲 HTTP。
 
 [English](agent-browser-engine.md)
 
@@ -73,9 +73,9 @@ curl -sS -X POST "$BASE/session/$SID/click" \
 
 1. **推荐**：agent 直接打 Aginx HTTP（本文 + `scripts/aginx-agent`）。
 2. **并存**：CDP 引擎继续用 `agent-browser --engine chrome|lightpanda|obscura`；需要 stealth/TLS 或国内站会话时用 Aginx。
-3. **未来**：[`cdp-serve-design.md`](cdp-serve-design.md) 落地后，上游可仿 Obscura 适配器。**在此之前上游 PR pending。**
+3. **未来**：the retired CDP design note 落地后，上游可仿 Obscura 适配器。**在此之前上游 PR pending。**
 
 ## 相关
 
 - [`stealth-tls-comparison.zh-CN.md`](stealth-tls-comparison.zh-CN.md)
-- [`cdp-serve-design.md`](cdp-serve-design.md)
+- the retired CDP design note

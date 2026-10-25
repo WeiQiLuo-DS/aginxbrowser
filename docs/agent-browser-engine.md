@@ -1,6 +1,6 @@
 # Using AginxBrowser as an agent-browser-style engine (HTTP)
 
-> Status: **shipped today via HTTP** (`/session` + `/snapshot` + `ref`). Native `vercel-labs/agent-browser --engine aginx` needs a CDP `serve` face and is tracked in [`cdp-serve-design.md`](cdp-serve-design.md). No MCP.
+> Status: **shipped via HTTP** (`/session` + `/snapshot` + `ref`). The CDP face was evaluated and retired — HTTP is the only protocol surface; upstream `--engine aginx` adapters would speak HTTP.
 
 [中文](agent-browser-engine.zh-CN.md)
 
@@ -13,7 +13,7 @@
 3. **click** / **input** by `ref`
 4. close
 
-Until CDP land, coding agents should call HTTP directly (or use the thin shim below). That is copy-paste usable today; an upstream `--engine aginx` PR is blocked on CDP and marked pending.
+With CDP retired, coding agents should call HTTP directly (or use the thin shim below). That is copy-paste usable today; an upstream `--engine aginx` PR is retired with the CDP face.
 
 ## Prerequisites
 
@@ -79,7 +79,7 @@ There is **no** `--engine aginx` in upstream yet. Practical options:
 
 1. **Preferred for agents**: call Aginx HTTP (this doc + `scripts/aginx-agent`) and skip agent-browser for that session.
 2. **Side-by-side**: keep `agent-browser --engine chrome|lightpanda|obscura` for CDP engines; use Aginx for stealth/TLS-sensitive Chinese merchant flows where HTTP session + cookie import already work (`/import/curl`, account sessions).
-3. **Future**: after [`cdp-serve-design.md`](cdp-serve-design.md) lands (`aginxbrowser serve --cdp`), upstream can mirror the Obscura adapter (`cli/src/native/cdp/obscura.rs`: spawn → discover `webSocketDebuggerUrl` → shared CDP command path). Until then, a stub PR would be rejected — **upstream PR pending CDP**.
+3. **Future**: after the retired CDP design note lands (`aginxbrowser serve --cdp`), upstream can mirror the Obscura adapter (`cli/src/native/cdp/obscura.rs`: spawn → discover `webSocketDebuggerUrl` → shared CDP command path). Until then, a stub PR would be rejected — **upstream PR pending CDP**.
 
 Example config you can keep locally for documentation (not honored by stock agent-browser):
 
@@ -105,4 +105,4 @@ Example config you can keep locally for documentation (not honored by stock agen
 
 - Snapshot feature commit lineage: session `/snapshot` with actionable refs
 - Stealth/TLS public matrix: [`stealth-tls-comparison.md`](stealth-tls-comparison.md)
-- CDP follow-up: [`cdp-serve-design.md`](cdp-serve-design.md)
+- CDP follow-up: the retired CDP design note

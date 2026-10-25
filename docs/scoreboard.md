@@ -158,7 +158,7 @@ Peers, first tip-shaped run on this machine (per-invocation CLI `fetch` — spaw
 | Local HTTP API (no MCP) | yes | [`docs/API.md`](API.md) |
 | Interactive snapshot + `ref=eN` | yes | Matrix C + API `/session/{id}/snapshot` |
 | Stealth TLS presets | yes | [stealth-tls-comparison](stealth-tls-comparison.md) |
-| CDP for agent-browser upstream | design only | [`cdp-serve-design.md`](cdp-serve-design.md) |
+| CDP for agent-browser upstream | retired (HTTP only) | — |
 | Drop-in Chromium replacement | no | intentional — HTTP-first |
 
 ---

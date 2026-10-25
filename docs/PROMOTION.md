@@ -20,7 +20,7 @@ Agent 用浏览器到底要什么？想清楚这件事，会发现就五件事�
 
 ## AginxBrowser 的回答
 
-一个 Rust 二进制，内置 V8，**不依赖 Chromium**。systemd 守护，HTTP API + MCP，启动即服务。
+一个 Rust 二进制，内置 V8，**不依赖 Chromium**。systemd 守护，HTTP API，启动即服务。
 
 ```
 ./aginxbrowser
@@ -83,27 +83,11 @@ curl -sS -X POST https://browser.aginx.net/search \
 
 **登录态也能复用**：会话里登一次，`session_cookies` 导出 cookie，下次 `session_create` 带上这组 cookie 直接以登录态起会话，不用重新登录。托管实例不落盘任何 cookie——登录态由你自己持有（建议用小号）。
 
-### 跑得动 —— 单二进制，MCP 直连
+### 跑得动 —— 单二进制，HTTP 直连
 
 一个二进制 ~70MB（含截图功能 ~104MB），不需要 Node、不需要 Chromium、不需要 Docker。systemd 守护，就是基础设施。
 
-`--mcp` 模式直接暴露 13 个工具，Claude Code / Claude Desktop / Cursor 配一下就能调，不用写 HTTP 客户端。**托管实例一行接入**（Claude Code）：
-
-```bash
-claude mcp add aginxbrowser --transport http https://browser.aginx.net/mcp
-```
-
-自部署则走 stdio：
-
-```json
-{
-  "mcpServers": {
-    "aginxbrowser": {
-      "command": "/path/to/aginxbrowser",
-      "args": ["--mcp"]
-    }
-  }
-}
+任何有 HTTP 客户端的环境（Claude Code / Cursor / 自写脚本）一条 `curl` 就能调，不需要 SDK、不需要 MCP 配置——协议面就是 REST。
 ```
 
 ## 不依赖 Chromium，为什么是核心
@@ -112,15 +96,15 @@ claude mcp add aginxbrowser --transport http https://browser.aginx.net/mcp
 
 Chromium 是为人设计的浏览器，它要处理 GPU 合成、音频、扩展、多进程沙箱——这些 Agent 一个都用不到，但每一个都是部署负担和故障面。Agent 要的是"把页面变成我能消化的输入"，不是"复刻一个人的浏览器"。
 
-所以 AginxBrowser 的内核（Obscura）只做 agent 要的：HTTP 抓取（带 TLS 指纹伪装、stealth）、V8 跑 JS、DOM 操作、布局绘制。砍掉一切人用浏览器才需要的重量。
+所以 AginxBrowser 的内核（diting，自研引擎）只做 agent 要的：HTTP 抓取（带 TLS 指纹伪装、stealth）、V8 跑 JS、DOM 操作、布局绘制。砍掉一切人用浏览器才需要的重量。
 
 代价是诚实说的：复杂 CSS 渲染是近似的（Blitz beta，非 Chromium 像素级精准），截图里的 `<img>` 不单独拉（风控站图片可能缺）。但 agent 看个页面布局、读个文字、定位个按钮，够用——而且省掉 400MB 依赖和一堆 Docker 配置。
 
 ## 谁该用
 
-- **做 Agent 应用的** —— 给你的 agent 配一双眼睛和一双手，HTTP 或 MCP 接入
+- **做 Agent 应用的** —— 给你的 agent 配一双眼睛和一双手，HTTP 直连
 - **做 RAG / 知识抓取的** —— 分层渲染 + 搜索聚合，比 Firecrawl 轻、比 Puppeteer 简单
-- **做 LLM 工具链的** —— 一个 MCP 配置，Claude/Cursor 直接有浏览器能力
+- **做 LLM 工具链的** —— 一条 curl，Claude/Cursor 的 agent 直接有浏览器能力
 - **受够了 Chromium 部署的** —— 单二进制 systemd，同机部署，所有应用共享
 
 ## 接入
@@ -128,16 +112,13 @@ Chromium 是为人设计的浏览器，它要处理 GPU 合成、音频、扩展
 **在线体验（托管实例）**：https://browser.aginx.net/ —— 一个实例，谁都能用，本篇文章所有示例都是直接打在它上面验证过的。
 
 ```bash
-# 1) 一键全装（SKILL.md + MCP + 验活，推荐）
+# 1) 一键全装（SKILL.md 触发面 + 验活，推荐）
 #    下载 -> 先看一眼 -> 确认无误再执行（不要盲跑网络脚本）
 curl -fsSL https://raw.githubusercontent.com/yinnho/aginxbrowser/main/skill.sh -o skill.sh
 less skill.sh
 bash skill.sh
 
-# 2) 只注册 MCP（Claude Code）
-claude mcp add aginxbrowser --transport http https://browser.aginx.net/mcp
-
-# 3) skills.sh 目录装触发面（Vercel agent skills 目录；MCP 仍需按 2 注册）
+# 2) skills.sh 目录装触发面（Vercel agent skills 目录）
 npx skills add yinnho/aginxbrowser
 
 # 或直接调 HTTP API

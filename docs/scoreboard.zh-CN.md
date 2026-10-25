@@ -151,7 +151,7 @@ navigate 与 snapshot 分开计时（首次用 `create(url)` 的探测把导航�
 | 本地 HTTP API（无 MCP） | 有 | [`docs/API.zh-CN.md`](API.zh-CN.md) |
 | 交互式 snapshot + `ref=eN` | 有 | 矩阵 C |
 | Stealth TLS 预设 | 有 | [stealth-tls-comparison](stealth-tls-comparison.zh-CN.md) |
-| 对接 agent-browser 的 CDP | 仅设计稿 | [`cdp-serve-design.md`](cdp-serve-design.md) |
+| 对接 agent-browser 的 CDP | 已退役（仅 HTTP） | — |
 | 即插即用 Chromium 替代 | 否 | 有意 — HTTP 优先 |
 
 ---
