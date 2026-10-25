@@ -342,6 +342,8 @@ If your network can't reach the rusty_v8 CDN (build hangs with zero progress aft
 | `AGINXBROWSER_STORE_SCOPE` | `global` | `session` scopes the cache per session instead of one shared pool |
 | `CAPTCHA_SOLVER_API_KEY` | none | 2captcha API key; enables CAPTCHA auto-solving |
 | `CAPTCHA_SOLVER_SERVICE` | `2captcha` | CAPTCHA solving provider |
+| `AGINXBROWSER_RISK_SIGNALS` | none | risk-control wall-detection signal table (JSON path; template in `config/risk-signals.template.json`). The public build ships an EMPTY table — wall detection is engine capability, the needle table is operator business data |
+| `AGINXBROWSER_VERDICT_RULES` | built-in empty template | verdict URL-rule overlay (JSON path; login-front and wall needles are private operational data) |
 | `AGINXBROWSER_MEILI_URL` | none | Meilisearch base URL; set to enable the private-index engine |
 | `AGINXBROWSER_MEILI_INDEX` | none | Meilisearch index uid to query |
 | `AGINXBROWSER_MEILI_KEY` | none | Optional Bearer key for the Meilisearch instance |

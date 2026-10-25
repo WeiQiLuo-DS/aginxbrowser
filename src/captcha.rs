@@ -360,37 +360,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn taobao_risk_markers_are_detected() {
-        // Clean MTop URL alone is not a captcha.
+    fn wall_risk_markers_are_detected() {
+        // Neutral demo table (asset separation: the shipped table is
+        // empty; these assertions pin the DETECTION MECHANISM).
+        crate::risk_markers::set_for_tests(crate::risk_markers::demo_table());
+        // Clean API URL alone is not a captcha.
         assert!(detect_captcha_type(
-            "https://h5api.m.taobao.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/",
+            "https://api.example.com/x/1.0/item.fetch/1.0/",
             None
         )
         .is_none());
-        // MTop risk-control JSON body (the page-14-of-13 case: HTTP 200, ret
-        // array says FAIL).
-        let blocked = r#"{"api":"mtop.taobao.shop.simple.item.fetch","ret":["FAIL_SYS_USER_VALIDATE","RGV587_ERROR::SM::Validate failed"],"data":{"url":"https://h5api.m.taobao.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/?punish=..."}}"#;
+        // Risk-control JSON body (HTTP 200, markers say walled).
+        let blocked = r#"{"api":"item.fetch","ret":["DEMO_WALL_HIT","walledata::validate failed"],"data":{"url":"https://api.example.com/x/1.0/?punish=..."}}"#;
         assert!(matches!(
-            detect_captcha_type("https://h5api.m.taobao.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/", Some(blocked)),
+            detect_captcha_type("https://api.example.com/x/1.0/item.fetch/1.0/", Some(blocked)),
             Some(CaptchaType::SliderCaptcha)
         ));
         // Punish redirect URL.
         assert!(matches!(
-            detect_captcha_type("https://punish.taobao.com/auth?x5sec=abcd", None),
+            detect_captcha_type("https://wall.example.net/auth?secmark=abcd", None),
             Some(CaptchaType::SliderCaptcha)
         ));
+        // Token in the body without a wall host.
         assert!(matches!(
-            detect_captcha_type("https://punish.tmall.com/x", None),
+            detect_captcha_type("https://api.example.com/x", Some(r#"{"walledata":"zzz"}"#)),
             Some(CaptchaType::SliderCaptcha)
         ));
-        // x5secdata token in the body without a punish host.
+        // Wall host inside an HTML body (script-driven redirect).
         assert!(matches!(
-            detect_captcha_type("https://h5api.m.taobao.com/x", Some(r#"{"x5secdata":"zzz"}"#)),
-            Some(CaptchaType::SliderCaptcha)
-        ));
-        // Punish host inside an HTML body (script-driven redirect).
-        assert!(matches!(
-            detect_captcha_type("https://shop.m.taobao.com/", Some(r#"<script>location.href="https://punish.taobao.com/"</script>"#)),
+            detect_captcha_type("https://shop.example.com/", Some(r#"<script>location.href="https://wall.example.net/"</script>"#)),
             Some(CaptchaType::SliderCaptcha)
         ));
     }
@@ -399,42 +397,40 @@ mod tests {
     fn successful_mtop_payload_is_not_flagged() {
         let ok = r#"{"ret":["SUCCESS::调用成功"],"data":{"totalCnt":"397","hasNext":true,"data":[{"itemId":"1","title":"x"}]}}"#;
         assert!(detect_captcha_type(
-            "https://h5api.m.taobao.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/",
+            "https://api.example.com/x/1.0/item.fetch/1.0/",
             Some(ok)
         )
         .is_none());
     }
 
     #[test]
-    fn tmd_punish_pages_are_detected_on_the_store_domain() {
-        // The kongze field report: 1688 lands the wall on the store's own
-        // domain, so the punish.* host needles never fire.
+    fn in_place_wall_pages_are_detected_on_the_clean_domain() {
+        // The wall can land on the site's own domain, so host needles
+        // never fire — path and body-title signals carry it.
+        crate::risk_markers::set_for_tests(crate::risk_markers::demo_table());
         assert!(matches!(
-            detect_captcha_type(
-                "https://kongze.1688.com/_____tmd_____/punish?src=detail",
-                None
-            ),
+            detect_captcha_type("https://shop.example.net//demo/punish?src=detail", None),
             Some(CaptchaType::SliderCaptcha)
         ));
         // The in-place variant — the product URL answers 200, only the
-        // body betrays it (the title is the operator's own evidence).
-        let wall = r#"<html><head><title>验证码拦截</title></head><body><div id="nc_1_wrapper"></div></body></html>"#;
+        // body betrays it.
+        let wall = r#"<html><head><title>Demo Intercept</title></head><body><div id="nc_1_wrapper"></div></body></html>"#;
         assert!(matches!(
-            detect_captcha_type("https://kongze.1688.com/page/offerlist.htm", Some(wall)),
+            detect_captcha_type("https://shop.example.net/page/list.htm", Some(wall)),
             Some(CaptchaType::SliderCaptcha)
         ));
-        // A tmd punish URL riding in a body (script-driven redirect).
+        // A punish URL riding in a body (script-driven redirect).
         assert!(matches!(
             detect_captcha_type(
-                "https://detail.1688.com/offer/123.html",
-                Some(r#"<script>location.href="https://detail.1688.com/_____tmd_____/punish"</script>"#)
+                "https://detail.example.net/offer/123.html",
+                Some(r#"<script>location.href="https://detail.example.net//demo/punish"</script>"#)
             ),
             Some(CaptchaType::SliderCaptcha)
         ));
-        // An ordinary store page stays clean.
+        // An ordinary page stays clean.
         assert!(detect_captcha_type(
-            "https://kongze.1688.com/page/offerlist.htm",
-            Some(r#"<html><title>某某硅胶制品旗舰店</title></html>"#)
+            "https://shop.example.net/page/list.htm",
+            Some(r#"<html><title>An Ordinary Shop</title></html>"#)
         )
         .is_none());
     }

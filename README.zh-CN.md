@@ -341,6 +341,8 @@ cargo build --release --features stealth,screenshot
 | `AGINXBROWSER_STORE_SCOPE` | `global` | `session` 让缓存按会话隔离，而不是一个共享池 |
 | `CAPTCHA_SOLVER_API_KEY` | 无 | 2captcha API Key，设置后自动解算验证码 |
 | `CAPTCHA_SOLVER_SERVICE` | `2captcha` | 验证码解算服务 |
+| `AGINXBROWSER_RISK_SIGNALS` | 无 | 风控墙检测信号表（JSON 路径，模板见 `config/risk-signals.template.json`）。公开构建默认空表——墙检测是引擎能力，needle 表是运营业务数据 |
+| `AGINXBROWSER_VERDICT_RULES` | 内置空模板 | verdict URL 规则覆盖（JSON 路径；登录页/风控墙 needle 均为私有运营数据） |
 | `AGINXBROWSER_MEILI_URL` | 无 | Meilisearch 地址；设置后启用私有索引引擎 |
 | `AGINXBROWSER_MEILI_INDEX` | 无 | 要查询的 Meilisearch index |
 | `AGINXBROWSER_MEILI_KEY` | 无 | 可选 Bearer key |

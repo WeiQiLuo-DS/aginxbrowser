@@ -93,18 +93,25 @@ fn parse_verdict_name(s: &str) -> Option<Verdict> {
 /// plus Cloudflare / Google / Baidu / QQ captcha interstitials.
 /// Platform login fronts live in `config/verdict_rules.json`.
 pub fn core_rules() -> Vec<UrlRule> {
-    vec![
-        UrlRule::new(crate::risk_markers::ALI_TMD_PUNISH_PATH, Verdict::Challenge),
-        UrlRule::new(crate::risk_markers::ALI_PUNISH_HOSTS[0], Verdict::Challenge),
-        UrlRule::new(crate::risk_markers::ALI_PUNISH_HOSTS[1], Verdict::Challenge),
-        UrlRule::new("sorry.google.com", Verdict::Captcha),
-        UrlRule::new("/sorry/", Verdict::Captcha),
+    // Generic web-infrastructure shapes only. Site-shaped needles —
+    // including challenge/punish hosts and login fronts — ride the
+    // operator's private tables (risk signals + verdict overlay), the
+    // asset-separation stance of 2026-10-25.
+    let mut rules = vec![
         UrlRule::new("/antispider", Verdict::Captcha),
-        UrlRule::new("wappass.baidu.com", Verdict::Captcha),
-        UrlRule::new("captcha.qq.com", Verdict::Captcha),
         UrlRule::new("challenges.cloudflare.com", Verdict::Captcha),
         UrlRule::new("challenge-platform", Verdict::Captcha),
-    ]
+    ];
+    // Wall needles ride the operator's signal table (path + host needles
+    // classify as Challenge; token needles are captcha-face-only and stay
+    // out of verdict on purpose — too broad for a landing classifier).
+    let t = crate::risk_markers::table();
+    if !t.challenge_tag.is_empty() {
+        for n in t.url_path_needles.iter().chain(t.url_host_needles.iter()) {
+            rules.push(UrlRule::new(n.clone(), Verdict::Challenge));
+        }
+    }
+    rules
 }
 
 /// Embedded fallback — same bytes as repo `config/verdict_rules.json` so
@@ -340,28 +347,36 @@ mod tests {
     /// ordinary content URLs of the same sites.
     #[test]
     fn url_rules_classify_walls_and_logins() {
+        // Demo signal table + demo overlay drive every classification —
+        // the shipped public tables are empty (asset separation).
+        crate::risk_markers::set_for_tests(crate::risk_markers::demo_table());
         let cases = [
-            ("https://punish.taobao.com/auth?x5sec=abc", Verdict::Challenge),
+            ("https://wall.example.net/auth?secmark=abc", Verdict::Challenge),
             (
-                "https://h5api.m.taobao.com/h5/x/1.0/?_____tmd_____/punish=x",
+                "https://api.example.com/x/1.0/?/demo/punish=x",
                 Verdict::Challenge,
             ),
-            ("https://www.google.com/sorry/index?q=x", Verdict::Captcha),
-            ("https://t.captcha.qq.com/cap_union_prehandle", Verdict::Captcha),
-            ("https://login.taobao.com/member/login.jhtml", Verdict::Login),
-            // creator.xiaohongshu.com bounces dead sessions here — the
-            // xhs-post dogfood's verdict gate rides this needle.
-            ("https://creator.xiaohongshu.com/login?source=official", Verdict::Login),
+            ("https://www.google.com/sorry/index?q=x", Verdict::Landed),
+            ("https://t.captcha.qq.com/cap_union_prehandle", Verdict::Landed),
+            ("https://login.example.net/member/login.jhtml", Verdict::Login),
+            ("https://creator.example.net/login?source=official", Verdict::Login),
             // Quiet-table negatives: no rule fires, the healthy 200 doc
             // speaks → landed (Unknown is reserved for non-2xx / no-doc,
             // NOT "table doesn't know this URL").
-            ("https://www.zhihu.com/signin?next=%2F", Verdict::Landed),
-            ("https://www.taobao.com/item/8123", Verdict::Landed),
-            ("https://passport.zhihu.com/signin", Verdict::Login),
-            ("https://x.com/login", Verdict::Login),
+            ("https://www.example.org/signin?next=%2F", Verdict::Landed),
+            ("https://shop.example.com/item/8123", Verdict::Landed),
+            ("https://login.taobao.com/member/login.jhtml", Verdict::Landed),
         ];
+        let demo_rules = {
+            let mut r = core_rules();
+            r.extend(parse_overlay_json(
+                r#"{"rules":[{"needle":"login.example.net","verdict":"login"},
+                             {"needle":"creator.example.net/login","verdict":"login"}]}"#,
+            ));
+            r
+        };
         for (url, want) in cases {
-            let (got, _) = verdict_for(&input(url), rules());
+            let (got, _) = verdict_for(&input(url), &demo_rules);
             assert_eq!(got, want, "url {url}");
         }
     }
@@ -429,15 +444,20 @@ mod tests {
 
     #[test]
     fn overlay_json_loads_login_needles() {
-        let overlay = parse_overlay_json(EMBEDDED_VERDICT_RULES_JSON);
+        // The public embedded template is EMPTY (asset separation) — the
+        // overlay MECHANISM is what this pins, against a demo document.
         assert!(
-            overlay.iter().any(|r| r.needle == "xiaohongshu.com/login" && r.verdict == Verdict::Login),
-            "embedded overlay must carry xhs login: {overlay:?}"
+            parse_overlay_json(EMBEDDED_VERDICT_RULES_JSON).is_empty(),
+            "public template ships no platform needles"
         );
-        // effective table = core + overlay
+        let overlay = parse_overlay_json(
+            r#"{"rules":[{"needle":"login.example.net","verdict":"login"},
+                         {"needle":"creator.example.net/login","verdict":"login"},
+                         {"needle":"wall.example.net","verdict":"challenge"}]}"#,
+        );
+        assert!(overlay.iter().any(|r| r.needle == "login.example.net" && r.verdict == Verdict::Login));
         let all = rules();
-        assert!(all.iter().any(|r| r.needle.contains("punish.taobao.com")));
-        assert!(all.iter().any(|r| r.needle == "login.taobao.com"));
+        assert!(all.iter().any(|r| r.needle == "challenges.cloudflare.com"));
     }
 
     /// The table is pluggable: a caller (or a future site pack) can

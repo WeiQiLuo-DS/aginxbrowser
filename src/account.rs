@@ -245,10 +245,11 @@ fn chrome_major_from_ua(ua: &str) -> Option<u32> {
 /// source (`diting_net::CLAIMED_CHROME_MAJOR`, ungated #276 P2-6): UA
 /// strings, persona coercion, and the TLS preset face move together, and
 /// the coherence tripwire test runs next to the constant in every build.
-/// Why 145: the xhs edge routes UA majors non-monotonically (145/154/157/
-/// 158 reach production; 146–153 and 155/156 land in its SIT loop) and
-/// wreq-util presets stop at 149 — 145 is the only production-routed
-/// major a real preset backs. Full history on the engine constant.
+/// Why 145 and not a newer major: edge-routing reconnaissance (which UA
+/// majors the target edges route to production vs sandbox loops) plus
+/// the TLS preset ceiling — the site-specific routing table is private
+/// operational data (asset separation 2026-10-25); the value and its
+/// coherence invariant stay public.
 fn default_tls_chrome_major() -> u32 {
     diting::diting_net::CLAIMED_CHROME_MAJOR
 }

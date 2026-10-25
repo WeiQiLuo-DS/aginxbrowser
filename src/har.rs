@@ -98,7 +98,7 @@ pub fn media_kind(url: &str, mime: Option<&str>) -> Option<&'static str> {
 /// — exactly the shape that left an mtop promise pending with no signal
 /// (the tmall report: the API redirect into `_____tmd_____/punish` looked
 /// like a normal response row). Returns the short challenge tag.
-pub fn challenge_kind(url: &str) -> Option<&'static str> {
+pub fn challenge_kind(url: &str) -> Option<String> {
     // Ali TMD / punish hosts — shared table in risk_markers (query stripped
     // for the path needle; see ali_url_challenge_kind).
     crate::risk_markers::ali_url_challenge_kind(url)
@@ -108,7 +108,7 @@ pub fn challenge_kind(url: &str) -> Option<&'static str> {
 /// taobao x5 wall fronts MTop requests this way: the URL stays the plain
 /// API endpoint, only the `ret` array / `x5secdata` field says the
 /// response is a challenge. Shared markers: [`crate::risk_markers`].
-pub fn body_challenge(body: &str) -> Option<&'static str> {
+pub fn body_challenge(body: &str) -> Option<String> {
     crate::risk_markers::ali_body_challenge_kind(body)
 }
 
@@ -242,7 +242,7 @@ pub fn xhr_bodies(
         }
         // #203: the filter matches the REQUESTED url, where the request
         // landed, and every hop in between — the merchant's `submit.htm`
-        // lookup must find a row whose submit bounced to error.taobao.com.
+        // lookup must find a row whose submit bounced to error.example.com.
         if !url_substrings.is_empty()
             && !url_substrings.iter().any(|s| {
                 e.url.contains(s.as_str())
@@ -570,15 +570,15 @@ mod tests {
 
     #[test]
     fn compact_rows_keep_requested_url_and_carry_the_wander() {
-        // #203: a submit that bounced to error.taobao.com used to read as
+        // #203: a submit that bounced to error.example.com used to read as
         // "never issued" because the failure row carried only the final
         // target. Now `url` is the requested address everywhere, and the
         // landing + hops follow it.
         let mut bounced = event("https://seller.example.com/publish.htm", "Fetch", 0, 1.0);
         bounced.error = Some("CORS error: cross-origin redirect refused".into());
-        bounced.final_url = "https://error.taobao.com/error.aspx".to_string();
+        bounced.final_url = "https://error.example.com/error.aspx".to_string();
         bounced.redirects = vec![diting::diting_net::RedirectHop {
-            url: "https://error.taobao.com/error.aspx".to_string(),
+            url: "https://error.example.com/error.aspx".to_string(),
             status: 302,
         }];
         let rows = compact_events(
@@ -586,11 +586,11 @@ mod tests {
             false,
         );
         assert_eq!(rows[0]["url"], "https://seller.example.com/publish.htm");
-        assert_eq!(rows[0]["final_url"], "https://error.taobao.com/error.aspx");
+        assert_eq!(rows[0]["final_url"], "https://error.example.com/error.aspx");
         assert_eq!(rows[0]["redirects"][0]["status"], 302);
         assert_eq!(
             rows[0]["redirects"][0]["url"],
-            "https://error.taobao.com/error.aspx"
+            "https://error.example.com/error.aspx"
         );
         // Straight-through rows keep their old shape: no empty redirect
         // fields leaking into every row.
@@ -621,9 +621,9 @@ mod tests {
     #[test]
     fn har_entries_expose_redirect_trail_as_custom_fields() {
         let mut walked = event("https://shop.example/submit.htm", "Fetch", 200, 1.0);
-        walked.final_url = "https://error.taobao.com/error.aspx".to_string();
+        walked.final_url = "https://error.example.com/error.aspx".to_string();
         walked.redirects = vec![diting::diting_net::RedirectHop {
-            url: "https://error.taobao.com/error.aspx".to_string(),
+            url: "https://error.example.com/error.aspx".to_string(),
             status: 302,
         }];
         let log = har_log(
@@ -635,7 +635,7 @@ mod tests {
         // The landing entry answers 200 with no Location — the trail rides
         // the _-prefixed fields instead.
         assert_eq!(entries[0]["response"]["redirectURL"], "");
-        assert_eq!(entries[0]["_finalUrl"], "https://error.taobao.com/error.aspx");
+        assert_eq!(entries[0]["_finalUrl"], "https://error.example.com/error.aspx");
         assert_eq!(entries[0]["_redirects"][0]["status"], 302);
         assert!(entries[1].get("_redirects").is_none());
     }
@@ -707,24 +707,25 @@ mod tests {
 
     #[test]
     fn compact_events_marks_challenge_rows() {
-        // The tmall report shape: the mtop API redirect lands on a punish
-        // page that answers 200 — status alone reads as success, so the
-        // row needs the explicit challenge tag.
+        // Demo table drives the wall shapes (the shipped table is empty —
+        // asset separation); the wall URL answers 200, so status alone
+        // reads as success and the row needs the explicit challenge tag.
+        crate::risk_markers::set_for_tests(crate::risk_markers::demo_table());
         let mut punished = event(
-            "https://h5api.m.tmall.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/_____tmd_____/punish",
+            "https://api.example.net/x/1.0/item.fetch/1.0//demo/punish",
             "Fetch",
             200,
             1.0,
         );
         punished.error = None;
         let api = event(
-            "https://h5api.m.tmall.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/",
+            "https://api.example.net/x/1.0/item.fetch/1.0/",
             "Fetch",
             200,
             2.0,
         );
         let rows = compact_events(&[punished, api], false);
-        assert_eq!(rows[0].get("challenge"), Some(&json!("punish")));
+        assert_eq!(rows[0].get("challenge"), Some(&json!("demo-wall")));
         assert!(
             rows[1].get("challenge").is_none(),
             "ordinary rows carry no challenge field"
@@ -732,68 +733,67 @@ mod tests {
         // Path-shaped, not substring-anywhere: a query param mentioning the
         // marker must not trip it.
         assert_eq!(
-            challenge_kind("https://shop.example/search?q=_____tmd_____/punish"),
+            challenge_kind("https://shop.example/search?q=/demo/punish"),
             None
         );
-        // The dedicated punish hosts are the x5 slider's home — a redirect
-        // landing there is the wall regardless of path.
+        // The dedicated wall host is the slider's home — a redirect landing
+        // there is the wall regardless of path.
         assert_eq!(
-            challenge_kind("https://punish.taobao.com/auth?x5sec=abc"),
-            Some("punish")
+            challenge_kind("https://wall.example.net/auth?secmark=abc"),
+            Some("demo-wall".to_string())
         );
         assert_eq!(
-            challenge_kind("https://PUNISH.TMALL.com/captcha/index.html"),
-            Some("punish")
+            challenge_kind("https://WALL.EXAMPLE.NET/captcha/index.html"),
+            Some("demo-wall".to_string())
         );
     }
 
     #[test]
-    fn body_challenge_reads_mtop_risk_control_json() {
-        // The taobao 0.4.1 report shape: the MTop endpoint answers 200, the
-        // URL stays the plain API path, only the body says "validate".
-        let mtop = r#"{"api":"mtop.taobao.shop.simple.item.fetch","ret":["FAIL_SYS_USER_VALIDATE","RGV587_ERROR::SM::Validate failed"],"data":{"url":"https://h5api.m.taobao.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/?_____tmd_____/punish%3Faction%3Dcaptcha"}}"#;
-        assert_eq!(body_challenge(mtop), Some("punish"));
+    fn body_challenge_reads_risk_control_json() {
+        // The swallowed-wall shape: the endpoint answers 200, the URL stays
+        // the plain API path, only the body markers say walled.
+        crate::risk_markers::set_for_tests(crate::risk_markers::demo_table());
+        let mtop = r#"{"api":"item.fetch","ret":["DEMO_WALL_HIT","walledata::validate failed"],"data":{"url":"https://api.example.net/x/1.0/?/demo/punish%3Faction%3Dcaptcha"}}"#;
+        assert_eq!(body_challenge(mtop), Some("demo-wall".to_string()));
         assert_eq!(
-            body_challenge(r#"{"data":{"x5secdata":"zzz"}}"#),
-            Some("punish")
+            body_challenge(r#"{"data":{"walledata":"zzz"}}"#),
+            Some("demo-wall".to_string())
         );
         // Ordinary success JSON never trips.
-        assert_eq!(
-            body_challenge(r#"{"api":"mtop.taobao.item.get","data":{}}"#),
-            None
-        );
+        assert_eq!(body_challenge(r#"{"api":"item.get","data":{}}"#), None);
         assert_eq!(body_challenge(""), None);
     }
 
     #[test]
     fn challenge_rows_see_url_and_body_walls() {
-        // URL-shaped: the redirect that landed on the punish path.
+        crate::risk_markers::set_for_tests(crate::risk_markers::demo_table());
+        // URL-shaped: the redirect that landed on the wall path.
         let landed = event(
-            "https://h5api.m.taobao.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/_____tmd_____/punish",
+            "https://api.example.net/x/1.0/item.fetch/1.0//demo/punish",
             "Fetch",
             200,
             1.0,
         );
         // Body-shaped: plain API URL, 200, risk-control JSON retained.
         let swallowed = event(
-            "https://h5api.m.taobao.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/",
+            "https://api.example.net/x/1.0/item.fetch/1.0/",
             "Fetch",
             200,
             2.0,
         );
         let clean = event(
-            "https://h5api.m.taobao.com/h5/mtop.taobao.recommend.feed/1.0/",
+            "https://api.example.net/x/1.0/recommend.feed/1.0/",
             "XHR",
             200,
             3.0,
         );
-        let mut failed = event("https://h5api.m.taobao.com/h5/x/", "Fetch", 0, 4.0);
+        let mut failed = event("https://api.example.net/x/1.0/y/", "Fetch", 0, 4.0);
         failed.error = Some("net::ERR_FAILED".into());
         let bodies = HashMap::from([
             (
                 swallowed.request_id.clone(),
                 StoredResponseBody {
-                    body: r#"{"ret":["FAIL_SYS_USER_VALIDATE"]}"#.into(),
+                    body: r#"{"ret":["DEMO_WALL_HIT"]}"#.into(),
                     base64_encoded: false,
                 },
             ),
@@ -812,16 +812,16 @@ mod tests {
         );
         assert_eq!(rows.len(), 2, "punished URL + swallowed body: {rows:?}");
         assert_eq!(rows[0]["via"], "url");
-        assert_eq!(rows[0]["kind"], "punish");
+        assert_eq!(rows[0]["kind"], "demo-wall");
         assert_eq!(rows[1]["via"], "body");
         assert_eq!(
             rows[1]["url"],
-            "https://h5api.m.taobao.com/h5/mtop.taobao.shop.simple.item.fetch/1.0/"
+            "https://api.example.net/x/1.0/item.fetch/1.0/"
         );
 
         // The same body-level tag rides the xhr_bodies rows.
         let xhr = xhr_bodies(&[swallowed, clean], &[], 0, false, &|rid| bodies.get(rid).cloned());
-        assert_eq!(xhr[0].get("challenge"), Some(&json!("punish")));
+        assert_eq!(xhr[0].get("challenge"), Some(&json!("demo-wall")));
         assert!(
             xhr[1].get("challenge").is_none(),
             "clean API row stays lean"

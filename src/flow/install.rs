@@ -573,7 +573,7 @@ mod tests {
     async fn flow_search_lists_only_flow_kind() {
         let listing = json!({
             "templates": [
-                {"name": "xhs-post", "description": "post to xhs", "latest_version": "1.2.0",
+                {"name": "demo-post", "description": "post a demo", "latest_version": "1.2.0",
                  "download_count": 41, "kind": "agx-flow"},
                 {"name": "qr-login", "description": "", "latest_version": "0.1.0",
                  "download_count": 3, "kind": "agx-flow"},
@@ -592,7 +592,7 @@ mod tests {
             .iter()
             .map(|f| f["name"].as_str().unwrap())
             .collect();
-        assert_eq!(names, vec!["xhs-post", "qr-login"], "clones must not surface as flows");
+        assert_eq!(names, vec!["demo-post", "qr-login"], "clones must not surface as flows");
         assert_eq!(receipt["total"], 3);
         assert_eq!(receipt["kind_filter"], json!(null), "supported hub: no degrade note");
         // The ask carried the kind filter even though the client re-filters.
