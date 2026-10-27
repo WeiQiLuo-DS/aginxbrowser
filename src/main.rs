@@ -308,6 +308,11 @@ async fn async_main() -> anyhow::Result<()> {
     // an isolate: the first isolate's JSDispatchTable init is not safe to race
     // from several threads (upstream obscura #430; construction itself is
     // serialized inside the runtime).
+    //
+    // Windows/V8 150 workaround: the main thread is not V8's central stack and
+    // Isolate::New aborts with IsOnCentralStack(). With the tokio blocking pool
+    // pinned to one thread, the first blocking task owns the isolate instead.
+    #[cfg(not(windows))]
     std::mem::drop(diting::diting_js::runtime::JsRuntime::new());
 
     // Opt-in relaxations, parsed before any mode branches. Both were
