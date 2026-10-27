@@ -241,8 +241,15 @@ Bind address comes from AGINXBROWSER_BIND (default 127.0.0.1:8089; bind
 0.0.0.0:8089 explicitly for LAN/container access and set AGINXBROWSER_TOKEN).
 Run `aginxbrowser doctor` for the full environment-knob report.";
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
+    tokio::runtime::Builder::new_multi_thread()
+        .max_blocking_threads(1)
+        .enable_all()
+        .build()?
+        .block_on(async_main())
+}
+
+async fn async_main() -> anyhow::Result<()> {
     let subscriber = tracing_subscriber::fmt()
         .with_ansi(false)
         .with_env_filter(
